@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React from "react";
 import * as d3 from "d3";
 import data from "../data.json";
 
@@ -20,30 +20,36 @@ export const SunburstChart = () => {
     d3.partition<Data>().size([2 * Math.PI, RADIUS])(
       d3
         .hierarchy(data)
-        .sum((d) => d.value || 1) // Ensure each node has a value
+        .sum((d) => d.value || 0)
         .sort((a, b) => (b.value || 0) - (a.value || 0))
     );
+
+  const color = d3.scaleOrdinal(
+    d3.quantize(d3.interpolateRainbow, (data.children?.length || 0) + 1)
+  );
+
   const format = d3.format(",d");
+
   const arc = d3
     .arc<d3.HierarchyRectangularNode<Data>>()
     .startAngle((d) => d.x0)
     .endAngle((d) => d.x1)
-    .padAngle((d) => Math.min((d.x1 - d.x0) / 50, 1)) // Adjust padding as needed
-    .padRadius(RADIUS)
+    .padAngle((d) => Math.min((d.x1 - d.x0) / 2, 0.005))
+    .padRadius(RADIUS / 2)
     .innerRadius((d) => d.y0)
-    .outerRadius((d) => d.y1);
+    .outerRadius((d) => d.y1 - 1);
 
   const getAutoBox = () => {
     if (!svgRef.current) {
-      return "0 0 0 0";
+      return "";
     }
 
     const { x, y, width, height } = svgRef.current.getBBox();
 
-    return `${x} ${y} ${width} ${height}`;
+    return [x, y, width, height].toString();
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     setViewBox(getAutoBox());
   }, []);
 
@@ -56,11 +62,11 @@ export const SunburstChart = () => {
     const maxDepth = root.height;
     // Create a color scale based on depth
     const depthColor = d3
-      .scaleOrdinal<string>(
+      .scaleOrdinal(
         d3.schemeTableau10 // Or any other color scheme you prefer
       )
-      .domain(d3.range(0, maxDepth + 1).map(String)); // Convert numbers to strings
-    return depthColor(d.depth.toString()); // Return color based on the node's depth
+      .domain(d3.range(0, maxDepth + 1)); // Map depths 0 to maxDepth to colors
+    return depthColor(d.depth); // Return color based on the node's depth
   };
 
   const getTextTransform = (d: d3.HierarchyRectangularNode<Data>) => {
@@ -115,10 +121,8 @@ export const SunburstChart = () => {
               key={`${d.data.name}-${i}`}
               id={`node-${sanitizeName(d.data.name)}`}
               fill={getColor(d)}
-              d={arc(d) || ""}
-              style={{
-                cursor: "pointer",
-              }}
+              d={arc(d)}
+              style={{ cursor: "pointer" }}
               onMouseOver={(event) => handleMouseOver(event, d)}
               onMouseOut={handleMouseOut}
             >
@@ -133,7 +137,12 @@ export const SunburstChart = () => {
             </path>
           ))}
       </g>
-      <g pointerEvents="none" textAnchor="middle" fontSize={10}>
+      <g
+        pointerEvents="none"
+        textAnchor="middle"
+        fontSize={10}
+        
+      >
         {root
           .descendants()
           .filter((d) => d.depth && ((d.y0 + d.y1) / 2) * (d.x1 - d.x0) > 10)
@@ -144,15 +153,13 @@ export const SunburstChart = () => {
               transform={getTextTransform(d)}
               dy="0.35em"
               textAnchor="middle"
-              fontSize={Math.min(3, (d.y1 - d.y0) / 4)}
+              fontSize={Math.min(10, (d.y1 - d.y0) / 4)} // Adjust font size based on container size
             >
               {wrapText(d.data.name, 10).map((line, index) => (
                 <tspan
-                  x="0"
-                  dy={`${index === 0 ? 0 : 0.9}em`}
-                  key={index}
-                  dominantBaseline="top"
-                >
+                 x="0"  dy={`${index === 0 ? 0 : 1}em`} key={index}
+                 dominantBaseline="top"
+                 >
                   {line}
                 </tspan>
               ))}
